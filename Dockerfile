@@ -14,9 +14,10 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Install server dependencies (resolves from /app/server/node_modules)
-COPY server/package*.json ./server/
-RUN cd server && npm install --omit=dev
+# Install all server deps from root package.json into /app/node_modules/
+# so `node server/index.js` (run from /app) can resolve them
+COPY package*.json ./
+RUN npm ci --omit=dev
 
 # Copy server source
 COPY server/ ./server/
