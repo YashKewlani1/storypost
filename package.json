@@ -1,0 +1,14 @@
+{
+  "name": "storypost",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "cd frontend && npm install && npm run build",
+    "start": "node server/index.js",
+    "dev:server": "cd server && node --env-file=.env --watch index.js",
+    "dev:frontend": "cd frontend && npm run dev"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
