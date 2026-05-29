@@ -1,7 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
-const PROD_API_KEY = import.meta.env.VITE_INTERNAL_API_KEY || '';
-
 export default function InterviewChat({ contextData, onComplete, apiPost, onReset }) {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.userAgent);
@@ -131,9 +129,7 @@ export default function InterviewChat({ contextData, onComplete, apiPost, onRese
           }
           const form = new FormData();
           form.append('audio', blob, filename);
-          const transcribeHeaders = {};
-          if (PROD_API_KEY) transcribeHeaders['X-API-Key'] = PROD_API_KEY;
-          const res  = await fetch('/api/transcribe', { method: 'POST', body: form, headers: transcribeHeaders, signal: controller.signal });
+          const res  = await fetch('/api/transcribe', { method: 'POST', body: form, signal: controller.signal });
           const data = await res.json();
           if (!res.ok) throw new Error(data.error || 'Transcription failed');
           if (data.text && isMountedRef.current) setInput(data.text.trim().slice(0, 2000));

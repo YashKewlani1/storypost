@@ -5,9 +5,6 @@ import PostResult from './components/PostResult';
 import './App.css';
 
 const MOCK = import.meta.env.VITE_MOCK === 'true';
-// In production, no Vite proxy to inject the key — frontend sends it directly.
-// Set VITE_INTERNAL_API_KEY in your Railway env vars (same value as INTERNAL_API_KEY).
-const PROD_API_KEY = import.meta.env.VITE_INTERNAL_API_KEY || '';
 
 const MOCK_POST = `Three years ago I sat in a hospital corridor at 11pm with my mother's discharge papers and zero idea what any of it meant.
 
@@ -49,11 +46,9 @@ async function apiPost(path, body, timeoutMs = 45000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const headers = { 'Content-Type': 'application/json' };
-    if (PROD_API_KEY) headers['X-API-Key'] = PROD_API_KEY;
     const res = await fetch(path, {
       method: 'POST',
-      headers,
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
       signal: controller.signal,
     });

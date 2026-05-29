@@ -21,8 +21,8 @@ if (!MOCK_MODE && !process.env.GROQ_API_KEY) {
   console.error('GROQ_API_KEY is required (or set MOCK_MODE=true)');
   process.exit(1);
 }
-if (!process.env.INTERNAL_API_KEY) {
-  console.error('INTERNAL_API_KEY is required');
+if (process.env.NODE_ENV !== 'production' && !process.env.INTERNAL_API_KEY) {
+  console.error('INTERNAL_API_KEY is required in dev (injected by Vite proxy)');
   process.exit(1);
 }
 
