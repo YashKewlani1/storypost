@@ -11,8 +11,13 @@ const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const JWT_SECRET    = process.env.JWT_SECRET    || 'dev-jwt-secret-change-in-prod';
 const IS_PROD       = process.env.NODE_ENV === 'production';
 
-if (IS_PROD && (!CLIENT_ID || !CLIENT_SECRET)) {
-  console.error('FATAL: GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are required in production');
+if (IS_PROD && (!CLIENT_ID || !CLIENT_SECRET || !process.env.JWT_SECRET)) {
+  const missing = [
+    !CLIENT_ID && 'GOOGLE_CLIENT_ID',
+    !CLIENT_SECRET && 'GOOGLE_CLIENT_SECRET',
+    !process.env.JWT_SECRET && 'JWT_SECRET',
+  ].filter(Boolean).join(', ');
+  console.error(`FATAL: ${missing} required in production`);
   process.exit(1);
 }
 
@@ -116,10 +121,10 @@ router.get('/me', (req, res) => {
   res.json({ email: user.email, name: user.name });
 });
 
-// Sign out
+// Sign out — clear cookie and land on the friendly sign-in page, not the OAuth flow
 router.post('/logout', (_req, res) => {
   res.clearCookie('auth');
-  res.redirect('/auth/google');
+  res.redirect('/signin');
 });
 
 export { verifyAuthCookie };

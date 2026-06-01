@@ -18,7 +18,9 @@ const groq = MOCK_MODE ? null : new OpenAI({
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+  // Vercel's hard request-body limit is 4.5 MB — keep multer under that so the
+  // app's 413 JSON error fires instead of Vercel's opaque infrastructure rejection.
+  limits: { fileSize: 4 * 1024 * 1024 }, // 4 MB
   fileFilter: (_, file, cb) => {
     const allowed = ['audio/webm', 'audio/webm;codecs=opus', 'audio/mp4', 'audio/mpeg', 'audio/wav', 'audio/ogg', 'video/webm'];
     cb(null, allowed.includes(file.mimetype) || file.mimetype.startsWith('audio/'));
