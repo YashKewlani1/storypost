@@ -645,7 +645,8 @@ Output exactly 2 lines only.`,
         h2 = cleanHookLine(h2);
 
         // Enforce word count <= 25
-        while ((h1 + ' ' + h2).trim().split(/\s+/).filter(Boolean).length > 25) {
+        let _safety1 = 0;
+        while ((h1 + ' ' + h2).trim().split(/\s+/).filter(Boolean).length > 25 && _safety1++ < 20) {
           const w1 = h1.split(/\s+/).filter(Boolean).length;
           const w2 = h2.split(/\s+/).filter(Boolean).length;
           if (w1 <= 4 && w2 <= 4) break;
@@ -766,7 +767,8 @@ Output only the rewritten paragraph.`,
           const cleanLine = s => s.replace(/ — ([A-Z])/g, (_, c) => '. ' + c).replace(/ — /g, ', ').replace(/—/g, ', ');
           h1 = cleanLine(h1);
           h2 = cleanLine(h2);
-          while ((h1 + ' ' + h2).trim().split(/\s+/).filter(Boolean).length > 25) {
+          let _safety2 = 0;
+          while ((h1 + ' ' + h2).trim().split(/\s+/).filter(Boolean).length > 25 && _safety2++ < 20) {
             const w1 = h1.split(/\s+/).filter(Boolean).length;
             const w2 = h2.split(/\s+/).filter(Boolean).length;
             if (w1 <= 4 && w2 <= 4) break;
@@ -918,7 +920,7 @@ Your response MUST contain both blocks: POST_START...POST_END and IMAGE_START...
       // Check as standalone last line first
       const postLines = post.split('\n');
       const lastLine = postLines[postLines.length - 1].trim();
-      const SELF_INTRO_RE = /(?:^|\.\s+)(I'?m [A-Z][a-z][^.]*(?:PM|manager|engineer|designer|lead|head|director|founder|co-founder|VP|CEO|CTO|CFO|COO)[^.]*\.)/i;
+      const SELF_INTRO_RE = /(?:^|\.\s+)(I'?m [A-Z][a-z][^.]*(?:PM|manager|engineer|designer|lead|head|director|founder|co-founder|VP|CEO|CTO|CFO|COO|analyst|associate|consultant|intern|specialist|coordinator|advisor|strategist|recruiter|partner|executive)[^.]*\.)/i;
       if (
         postLines.length > 1 &&
         (

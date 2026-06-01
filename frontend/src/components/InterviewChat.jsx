@@ -206,7 +206,13 @@ export default function InterviewChat({ contextData, onComplete, apiPost, onRese
 
   const stopRecording = useCallback(() => {
     try { recognitionRef.current?.stop(); } catch {}
-    if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop();
+    if (mediaRecorderRef.current?.state === 'recording') {
+      mediaRecorderRef.current.stop(); // triggers onstop → stops tracks there too
+    } else {
+      // Recorder wasn't recording — onstop won't fire, release tracks directly
+      streamRef.current?.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
+    }
     setListening(false);
   }, []);
 
