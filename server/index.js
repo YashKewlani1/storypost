@@ -176,7 +176,7 @@ if (existsSync(DIST)) {
 // Global error handler
 app.use((err, req, res, _next) => {
   if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'Invalid request body' });
-  if (err.code === 'LIMIT_FILE_SIZE')      return res.status(413).json({ error: 'File too large. Maximum size is 10 MB.' });
+  if (err.code === 'LIMIT_FILE_SIZE')      return res.status(413).json({ error: 'File too large. Maximum size is 4 MB.' });
   console.error('Unhandled error:', err.status ?? 500, err.message);
   res.status(err.status || 500).json({ error: 'Internal server error' });
 });

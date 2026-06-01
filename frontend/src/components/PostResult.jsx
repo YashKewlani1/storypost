@@ -199,7 +199,7 @@ export default function PostResult({ post, imageIdea, contextData, onReset, onRe
             <button
               className="btn-secondary"
               onClick={isModified ? () => setConfirmRegen(true) : onRegenerate}
-              disabled={loading || regenHookLoading}
+              disabled={loading || regenHookLoading || regenParaIndex !== null}
               title={isModified ? 'Regenerating will replace your edits' : undefined}
             >
               {loading ? (
@@ -220,7 +220,7 @@ export default function PostResult({ post, imageIdea, contextData, onReset, onRe
             <button
               className="btn-secondary"
               onClick={() => onRegenHook(displayPost)}
-              disabled={loading || regenHookLoading}
+              disabled={loading || regenHookLoading || regenParaIndex !== null}
               title="Keep the post body, write a new hook only"
             >
               {regenHookLoading ? (
