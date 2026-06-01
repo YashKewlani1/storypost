@@ -1,5 +1,5 @@
 import express from 'express';
-import session from 'express-session';
+import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import helmet from 'helmet';
 import { fileURLToPath } from 'url';
@@ -9,7 +9,7 @@ import { existsSync } from 'fs';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 import { limiter } from './middleware/rateLimiter.js';
 import { requireApiKey } from './middleware/auth.js';
-import authRouter, { passport } from './routes/auth.js';
+import authRouter, { verifyAuthCookie } from './routes/auth.js';
 import postRouter from './routes/post.js';
 import interviewRouter from './routes/interview.js';
 import transcribeRouter from './routes/transcribe.js';
@@ -17,12 +17,13 @@ import transcribeRouter from './routes/transcribe.js';
 const app = express();
 
 const MOCK_MODE = process.env.MOCK_MODE === 'true';
+const IS_PROD   = process.env.NODE_ENV === 'production';
 
 if (!MOCK_MODE && !process.env.GROQ_API_KEY) {
   console.error('GROQ_API_KEY is required (or set MOCK_MODE=true)');
   process.exit(1);
 }
-if (process.env.NODE_ENV !== 'production' && !process.env.INTERNAL_API_KEY) {
+if (!IS_PROD && !process.env.INTERNAL_API_KEY) {
   console.error('INTERNAL_API_KEY is required in dev (injected by Vite proxy)');
   process.exit(1);
 }
@@ -34,53 +35,38 @@ if (MOCK_MODE) {
 app.use(helmet());
 const PORT = process.env.PORT || 3000;
 app.use(cors({ origin: process.env.CORS_ORIGIN || 'http://localhost:5000' }));
-app.set('trust proxy', 1); // trust first proxy hop so req.ip is the real client IP, not the proxy's
+app.set('trust proxy', 1);
 
-// Session — must come before passport
-const IS_PROD = process.env.NODE_ENV === 'production';
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'dev-secret-change-in-prod',
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    secure:   IS_PROD,   // HTTPS-only in prod
-    httpOnly: true,
-    sameSite: 'lax',
-    maxAge:   7 * 24 * 60 * 60 * 1000, // 7 days
-  },
-}));
-app.use(passport.initialize());
-app.use(passport.session());
+// Cookie parser — needed to read the auth JWT cookie
+app.use(cookieParser());
 
-// Google OAuth routes — public, no auth required
+// Auth routes (Google OAuth redirect / callback) — always public
 app.use('/auth', authRouter);
 
-// Redirect unauthenticated browser visits to Google sign-in (production only)
+// Protect frontend pages in production — redirect to Google sign-in if no auth cookie
 if (IS_PROD) {
   app.use((req, res, next) => {
-    // Let API calls, auth routes, and health check through
     if (req.path.startsWith('/api') || req.path.startsWith('/auth') || req.path === '/health') return next();
-    if (!req.isAuthenticated()) return res.redirect('/auth/google');
+    if (!verifyAuthCookie(req)) return res.redirect('/auth/google');
     next();
   });
 }
 
-// 1. Auth — rejects unauthenticated requests before any body is parsed or counted
-//    In dev: checks x-api-key header (injected by Vite proxy)
-//    In prod: checks passport session (set after Google SSO)
+// 1. Auth for API routes
+//    Dev: x-api-key header from Vite proxy
+//    Prod: JWT cookie from Google SSO
 app.use('/api', IS_PROD
-  ? (req, res, next) => req.isAuthenticated() ? next() : res.status(401).json({ error: 'Not authenticated' })
+  ? (req, res, next) => verifyAuthCookie(req) ? next() : res.status(401).json({ error: 'Not authenticated' })
   : requireApiKey
 );
 
-// 2. Rate limiting — runs before body parsing so high-frequency callers are dropped
-//    before CPU/memory is spent on parsing large payloads
+// 2. Rate limiting
 app.use('/api', limiter);
 
-// 3. Prevent any proxy or browser from caching API responses (posts contain personal content)
+// 3. No caching on API responses
 app.use('/api', (_, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
 
-// 4. Body parsing — after auth + rate limit so only legitimate, non-throttled requests pay the parse cost
+// 4. Body parsing
 app.use(express.json({ limit: '12mb' }));
 
 app.use('/api/interview', interviewRouter);
@@ -89,44 +75,42 @@ app.use('/api/transcribe', transcribeRouter);
 
 app.get('/health', (_, res) => res.json({ status: 'ok' }));
 
-// Serve the built frontend (production only — in dev the Vite server handles this)
+// Serve built frontend when running on Railway / local production
+// On Vercel, static files are served directly from CDN — this block is skipped
 const DIST = join(__dirname, '../frontend/dist');
 if (existsSync(DIST)) {
   app.use(express.static(DIST));
-  // SPA fallback — all non-API routes return index.html
   app.get('*', (req, res) => {
-    if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'Not found' });
+    if (req.path.startsWith('/api/') || req.path.startsWith('/auth/')) {
+      return res.status(404).json({ error: 'Not found' });
+    }
     res.sendFile(join(DIST, 'index.html'));
   });
 } else {
-  // Catch-all for unmatched routes (dev mode — frontend runs separately)
   app.use((req, res) => res.status(404).json({ error: 'Not found' }));
 }
 
-// Global error handler — must be last and have 4 args so Express treats it as an error handler.
-// Prevents stack traces, internal paths, and error details from ever reaching the client.
+// Global error handler
 app.use((err, req, res, _next) => {
-  if (err.type === 'entity.parse.failed') {
-    return res.status(400).json({ error: 'Invalid request body' });
-  }
-  if (err.code === 'LIMIT_FILE_SIZE') {
-    return res.status(413).json({ error: 'File too large. Maximum size is 10 MB.' });
-  }
+  if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'Invalid request body' });
+  if (err.code === 'LIMIT_FILE_SIZE')      return res.status(413).json({ error: 'File too large. Maximum size is 10 MB.' });
   console.error('Unhandled error:', err.status ?? 500, err.message);
   res.status(err.status || 500).json({ error: 'Internal server error' });
 });
 
-const server = app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
-
-// Graceful shutdown — finish in-flight requests before exiting
-function gracefulShutdown(signal) {
-  console.log(`${signal} received — shutting down gracefully`);
-  server.close(() => {
-    console.log('All connections closed');
-    process.exit(0);
+// Start listening unless running inside Vercel (Vercel handles the HTTP layer)
+if (!process.env.VERCEL) {
+  const PORT_NUM = parseInt(PORT, 10);
+  const server = app.listen(PORT_NUM, () => {
+    console.log(`Server running on http://localhost:${PORT_NUM}`);
   });
+
+  function gracefulShutdown(signal) {
+    console.log(`${signal} received — shutting down gracefully`);
+    server.close(() => { console.log('All connections closed'); process.exit(0); });
+  }
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  process.on('SIGINT',  () => gracefulShutdown('SIGINT'));
 }
-process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-process.on('SIGINT',  () => gracefulShutdown('SIGINT'));
+
+export default app;
