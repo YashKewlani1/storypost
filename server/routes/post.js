@@ -880,6 +880,8 @@ Write a ${wordRange} LinkedIn post built entirely from what they said${imageBase
 
 HOOK REMINDER — the post MUST open with exactly 2 short lines, each its own sentence, followed by one blank line. Line 1: one specific fact or moment. Line 2: a NEW fact that cannot be inferred from line 1. Then a blank line. Then the body starts. Do NOT open with "I've been...", "I work...", "I've noticed...", "I've been working with...", or any soft multi-clause opener. If no concrete incident exists, use hook Structure 3 or 4 from the system prompt.
 
+ENDING BAN — the last sentence of the post must NEVER mention the employee's name or introduce them. Do NOT end with anything like "I'm ${safeName}...", "My name is ${safeName.split(' ')[0]}...", "${safeName}, [role] at Loop", or any sentence that names them or summarises what they talked about. The post ends with the story or the landing line — never a byline or sign-off.
+
 Your response MUST contain both blocks: POST_START...POST_END and IMAGE_START...IMAGE_END. A response without the IMAGE block is incomplete.`;
 
       const userMessage = imageBase64
@@ -949,14 +951,29 @@ Your response MUST contain both blocks: POST_START...POST_END and IMAGE_START...
         // e.g. "...better product manager. I'm Priya, PM at Loop."
         const lastParaIdx = post.lastIndexOf('\n\n');
         const lastPara = lastParaIdx >= 0 ? post.slice(lastParaIdx + 2) : post;
-        // Old pattern required uppercase after comma OR "at Loop" — missed "I'm Yash, and I shared..."
-        // New: any sentence where "I'm [ProperName]," appears at the end of the last paragraph.
+        // Catches "I'm [ProperName]..." regardless of what follows (comma, period, "and", etc.)
         const selfIntroSentenceRE = /\s+I'?m [A-Z][a-z][^.]{0,80}\.\s*$/i;
         if (selfIntroSentenceRE.test(lastPara)) {
           const cleaned = lastPara.replace(selfIntroSentenceRE, '').trim();
           post = lastParaIdx >= 0
             ? post.slice(0, lastParaIdx + 2) + cleaned
             : cleaned;
+          post = post.trim();
+        }
+      }
+
+      // Name-aware strip — catches any variant that mentions the employee's name
+      // in the last sentence of the last paragraph, regardless of phrasing.
+      // e.g. "I'm Yash, and I shared...", "My name is Yash Kewlani.", "— Yash"
+      const nameParts = safeName.split(/\s+/).filter(p => p.length > 1);
+      if (nameParts.length > 0) {
+        const nameAlts = nameParts.map(p => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+        const nameLeakRE = new RegExp(`\\s+[^.]*\\b(?:${nameAlts})\\b[^.]*\\.\\s*$`, 'i');
+        const lastParaIdx2 = post.lastIndexOf('\n\n');
+        const lastPara2 = lastParaIdx2 >= 0 ? post.slice(lastParaIdx2 + 2) : post;
+        if (nameLeakRE.test(lastPara2)) {
+          const cleaned2 = lastPara2.replace(nameLeakRE, '').trim();
+          post = lastParaIdx2 >= 0 ? post.slice(0, lastParaIdx2 + 2) + cleaned2 : cleaned2;
           post = post.trim();
         }
       }
