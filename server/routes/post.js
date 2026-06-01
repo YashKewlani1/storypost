@@ -444,14 +444,19 @@ function cleanPost(post) {
     .trim();
 
   // 4. Strip any sentence containing a question mark (banned per system prompt)
-  result = result.split('\n\n').map(para => {
+  const paraList4 = result.split('\n\n');
+  result = paraList4.map((para, idx) => {
     if (!para.trim()) return '';
+    if (!para.includes('?')) return para;
     const sentences = splitSentences(para);
     if (sentences.length <= 1) {
-      // If the whole paragraph is a question, remove it entirely
-      return para.includes('?') ? '' : para;
+      // Never delete the hook (first paragraph) — convert the ? to a period instead
+      if (idx === 0) return para.replace(/\?/g, '.');
+      return '';
     }
     const filtered = sentences.filter(s => !s.includes('?'));
+    // If filtering would empty the hook, fall back to replacing ? with .
+    if (filtered.length === 0 && idx === 0) return para.replace(/\?/g, '.');
     return filtered.length > 0 ? filtered.join(' ') : '';
   }).filter(p => p.trim()).join('\n\n');
 
@@ -546,7 +551,10 @@ router.post(
   }),
   body('messages.*.role').isIn(['user', 'assistant']),
   body('messages.*.content').isString().notEmpty().isLength({ max: 8000 }),
-  body('imageBase64').optional().isString().isLength({ max: 8_000_000 }),
+  // Vercel serverless hard limit is 4.5 MB request body — base64 overhead ~33%,
+  // so max ~3.4 MB source image ≈ 4_500_000 base64 chars. Anything larger is
+  // silently rejected by Vercel's infra before Express sees it anyway.
+  body('imageBase64').optional().isString().isLength({ max: 4_500_000 }),
   body('imageMimeType').optional().isIn(['image/jpeg', 'image/png', 'image/webp'])
     .custom((val, { req }) => {
       if (req.body.imageBase64 && !val) throw new Error('imageMimeType required when imageBase64 is present');
@@ -920,7 +928,6 @@ Your response MUST contain both blocks: POST_START...POST_END and IMAGE_START...
       // Check as standalone last line first
       const postLines = post.split('\n');
       const lastLine = postLines[postLines.length - 1].trim();
-      const SELF_INTRO_RE = /(?:^|\.\s+)(I'?m [A-Z][a-z][^.]*(?:PM|manager|engineer|designer|lead|head|director|founder|co-founder|VP|CEO|CTO|CFO|COO|analyst|associate|consultant|intern|specialist|coordinator|advisor|strategist|recruiter|partner|executive)[^.]*\.)/i;
       if (
         postLines.length > 1 &&
         (

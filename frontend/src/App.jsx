@@ -117,14 +117,14 @@ export default function App() {
     }
   }
 
-  async function handleRegenHook() {
+  async function handleRegenHook(currentPostOverride) {
     if (regenHookLoadingRef.current) return;
     regenHookLoadingRef.current = true;
     const myId = ++genIdRef.current;
     setGenerateError(null);
     setRegenHookLoading(true);
     try {
-      const result = await apiPost('/api/generate', { ...contextData, messages, hookOnly: true, currentPost: post });
+      const result = await apiPost('/api/generate', { ...contextData, messages, hookOnly: true, currentPost: currentPostOverride ?? post });
       if (genIdRef.current !== myId) return;
       pushHistory(post);
       setPost(result.post);
@@ -149,7 +149,7 @@ export default function App() {
     });
   }
 
-  async function handleRegenParagraph(index, paragraphText) {
+  async function handleRegenParagraph(index, paragraphText, currentPostOverride) {
     if (regenParaIndex !== null) return; // another para is already loading
     const myId = ++genIdRef.current;
     setGenerateError(null);
@@ -161,7 +161,9 @@ export default function App() {
         regenParagraph: true,
         paragraphIndex: index,
         paragraphText,
-        currentPost: post,
+        // Use the currently displayed (possibly edited) post so user edits to
+        // other paragraphs are preserved when a single paragraph is rewritten.
+        currentPost: currentPostOverride ?? post,
       });
       if (genIdRef.current !== myId) return;
       pushHistory(post);
