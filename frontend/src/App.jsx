@@ -53,6 +53,7 @@ async function apiPost(path, body, timeoutMs = 45000) {
       signal: controller.signal,
     });
     const data = await res.json().catch(() => ({}));
+    if (res.status === 401) { window.location.href = '/auth/google'; return; }
     if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
     return data;
   } catch (err) {

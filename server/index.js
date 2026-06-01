@@ -1,4 +1,5 @@
 import express from 'express';
+import session from 'express-session';
 import cors from 'cors';
 import helmet from 'helmet';
 import { fileURLToPath } from 'url';
@@ -8,6 +9,7 @@ import { existsSync } from 'fs';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 import { limiter } from './middleware/rateLimiter.js';
 import { requireApiKey } from './middleware/auth.js';
+import authRouter, { passport } from './routes/auth.js';
 import postRouter from './routes/post.js';
 import interviewRouter from './routes/interview.js';
 import transcribeRouter from './routes/transcribe.js';
@@ -34,8 +36,42 @@ const PORT = process.env.PORT || 3000;
 app.use(cors({ origin: process.env.CORS_ORIGIN || 'http://localhost:5000' }));
 app.set('trust proxy', 1); // trust first proxy hop so req.ip is the real client IP, not the proxy's
 
+// Session — must come before passport
+const IS_PROD = process.env.NODE_ENV === 'production';
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'dev-secret-change-in-prod',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure:   IS_PROD,   // HTTPS-only in prod
+    httpOnly: true,
+    sameSite: 'lax',
+    maxAge:   7 * 24 * 60 * 60 * 1000, // 7 days
+  },
+}));
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Google OAuth routes — public, no auth required
+app.use('/auth', authRouter);
+
+// Redirect unauthenticated browser visits to Google sign-in (production only)
+if (IS_PROD) {
+  app.use((req, res, next) => {
+    // Let API calls, auth routes, and health check through
+    if (req.path.startsWith('/api') || req.path.startsWith('/auth') || req.path === '/health') return next();
+    if (!req.isAuthenticated()) return res.redirect('/auth/google');
+    next();
+  });
+}
+
 // 1. Auth — rejects unauthenticated requests before any body is parsed or counted
-app.use('/api', requireApiKey);
+//    In dev: checks x-api-key header (injected by Vite proxy)
+//    In prod: checks passport session (set after Google SSO)
+app.use('/api', IS_PROD
+  ? (req, res, next) => req.isAuthenticated() ? next() : res.status(401).json({ error: 'Not authenticated' })
+  : requireApiKey
+);
 
 // 2. Rate limiting — runs before body parsing so high-frequency callers are dropped
 //    before CPU/memory is spent on parsing large payloads
