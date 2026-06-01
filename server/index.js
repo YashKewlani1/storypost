@@ -19,13 +19,22 @@ const app = express();
 const MOCK_MODE = process.env.MOCK_MODE === 'true';
 const IS_PROD   = process.env.NODE_ENV === 'production';
 
-if (!MOCK_MODE && !process.env.GROQ_API_KEY) {
-  console.error('GROQ_API_KEY is required (or set MOCK_MODE=true)');
-  process.exit(1);
-}
-if (!IS_PROD && !process.env.INTERNAL_API_KEY) {
-  console.error('INTERNAL_API_KEY is required in dev (injected by Vite proxy)');
-  process.exit(1);
+const missingVars = [
+  (!MOCK_MODE && !process.env.GROQ_API_KEY) && 'GROQ_API_KEY',
+  (!IS_PROD  && !process.env.INTERNAL_API_KEY) && 'INTERNAL_API_KEY',
+].filter(Boolean);
+
+if (missingVars.length) {
+  // On Vercel (serverless) process.exit() just restarts the function — use a
+  // poison-pill middleware that returns a clear 503 instead so the error is visible.
+  const msg = `Missing required env vars: ${missingVars.join(', ')}`;
+  console.error(msg);
+  if (process.env.VERCEL) {
+    // Can't exit cleanly; poison all routes so the error surfaces to the caller
+    app.use((_req, res) => res.status(503).json({ error: msg }));
+  } else {
+    process.exit(1);
+  }
 }
 
 if (MOCK_MODE) {

@@ -351,7 +351,7 @@ const LESSON_SENTENCE_RE = [
 ];
 
 // Non-role "As a X" phrases that must NOT be stripped by the role-prefix remover
-const ROLE_EXCLUSIONS = /^As an? (result|whole|matter|team|company|group|collective|community|society|country|nation|part|side effect|consequence|follow.?up|follow|note|caveat|disclaimer|bonus)\b/i;
+const ROLE_EXCLUSIONS = /^As an? (result|whole|matter|team|company|group|collective|community|society|country|nation|part|side effect|consequence|follow.?up|follow|note|caveat|disclaimer|bonus|mother|father|parent|child|daughter|son|sibling|brother|sister|spouse|partner|patient|caregiver|survivor|kid|outsider|immigrant|first.gen)\b/i;
 
 // Whole-paragraph patterns — remove the entire paragraph.
 const FILLER_PARA_RE = [

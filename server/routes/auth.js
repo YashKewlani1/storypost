@@ -11,6 +11,11 @@ const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const JWT_SECRET    = process.env.JWT_SECRET    || 'dev-jwt-secret-change-in-prod';
 const IS_PROD       = process.env.NODE_ENV === 'production';
 
+if (IS_PROD && (!CLIENT_ID || !CLIENT_SECRET)) {
+  console.error('FATAL: GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are required in production');
+  process.exit(1);
+}
+
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 function setAuthCookie(res, payload) {
@@ -36,7 +41,7 @@ function verifyAuthCookie(req) {
 router.get('/google', (_req, res) => {
   const state = crypto.randomBytes(16).toString('hex');
   // Store state nonce in a short-lived cookie (CSRF protection without a session)
-  res.cookie('oauth_state', state, { httpOnly: true, secure: IS_PROD, sameSite: 'lax', maxAge: 5 * 60 * 1000 });
+  res.cookie('oauth_state', state, { httpOnly: true, secure: IS_PROD, sameSite: 'lax', path: '/', maxAge: 5 * 60 * 1000 });
   const params = new URLSearchParams({
     client_id:     CLIENT_ID,
     redirect_uri:  `${BASE_URL}/auth/google/callback`,
@@ -55,7 +60,7 @@ router.get('/google/callback', async (req, res) => {
   if (!state || state !== savedState) {
     return res.status(403).send('Invalid OAuth state — possible CSRF. Try signing in again.');
   }
-  res.clearCookie('oauth_state');
+  res.clearCookie('oauth_state', { path: '/' });
 
   try {
     // Exchange code for access token

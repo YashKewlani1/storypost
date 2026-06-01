@@ -1,8 +1,11 @@
 import rateLimit from 'express-rate-limit';
 
+// NOTE: on Vercel (serverless) this is per-instance, not global — each cold-start
+// resets the counter. Acceptable because Google SSO already gates access to
+// @loophealth.com accounts. Provides burst protection within a single instance.
 export const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 300, // ~20 full sessions per window per IP — allows several employees behind the same office NAT
+  max: 300,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests, please try again later.' },
