@@ -339,6 +339,7 @@ const LESSON_SENTENCE_RE = [
   /^i'?ve spent [^.]{0,30} as (a|an) [a-z][^.]{2,80}/i,
   /^i have been (working |)(as |)(a |an )[a-z][^.]{2,80}(for|over|the past)/i,
   /^i'?ve worked (as|in) (a |an )?[a-z][^.]{2,80}/i,
+  /^i'?m [A-Z][a-z]+(?:\s+[A-Z][a-z]+)?,\s/i,  // "I'm Yash, ..." — name-first self-intro (catches "I'm Yash, and I shared..." too)
   /^i'?m [A-Z][a-z]+[, ].{0,60}(and |at |,).{0,60}(loop|my role|i (work|lead|manage|build|run))/i,
   // LLM meta-commentary that leaks into output
   /\bis not required at the end\b/i,
@@ -948,7 +949,9 @@ Your response MUST contain both blocks: POST_START...POST_END and IMAGE_START...
         // e.g. "...better product manager. I'm Priya, PM at Loop."
         const lastParaIdx = post.lastIndexOf('\n\n');
         const lastPara = lastParaIdx >= 0 ? post.slice(lastParaIdx + 2) : post;
-        const selfIntroSentenceRE = /\s+I'?m [A-Z][a-z][^.]*(?:,\s*[A-Z]|at Loop)[^.]*\.\s*$/i;
+        // Old pattern required uppercase after comma OR "at Loop" — missed "I'm Yash, and I shared..."
+        // New: any sentence where "I'm [ProperName]," appears at the end of the last paragraph.
+        const selfIntroSentenceRE = /\s+I'?m [A-Z][a-z][^.]{0,80}\.\s*$/i;
         if (selfIntroSentenceRE.test(lastPara)) {
           const cleaned = lastPara.replace(selfIntroSentenceRE, '').trim();
           post = lastParaIdx >= 0
