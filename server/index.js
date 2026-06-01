@@ -129,7 +129,16 @@ if (IS_PROD) {
   });
 
   app.use((req, res, next) => {
-    if (req.path.startsWith('/api') || req.path.startsWith('/auth') || req.path === '/health' || req.path === '/signin') return next();
+    // Static assets (JS, CSS, fonts, images, etc.) must pass through so the browser
+    // can load the JS bundle — without this, the auth redirect returns HTML as the
+    // JS response, the parser chokes, React never mounts, and the page is blank.
+    if (
+      req.path.startsWith('/api') ||
+      req.path.startsWith('/auth') ||
+      req.path === '/health' ||
+      req.path === '/signin' ||
+      /\.\w{1,5}$/.test(req.path) // any path ending with a file extension
+    ) return next();
     if (!verifyAuthCookie(req)) return res.redirect('/signin');
     next();
   });

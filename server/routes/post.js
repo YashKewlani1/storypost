@@ -335,7 +335,7 @@ const LESSON_SENTENCE_RE = [
   // "X is not just about" patterns
   /^(this|that|it) (is |was |isn'?t |wasn'?t )?(just |only )?about\b/i,
   // Self-introduction sentences — banned on LinkedIn (followers know who they are)
-  /^i'?ve been (a|an) [a-z][^.]{2,80}(for \d|for (about|over|nearly|around|the past|more than|almost|close to))/i,
+  /^i'?ve been (a|an) (?!patient\b|caregiver\b|parent\b|mother\b|father\b|son\b|daughter\b|sibling\b|child\b|survivor\b|outsider\b|immigrant\b)[a-z][^.]{2,80}(for \d|for (about|over|nearly|around|the past|more than|almost|close to))/i,
   /^i'?ve spent [^.]{0,30} as (a|an) [a-z][^.]{2,80}/i,
   /^i have been (working |)(as |)(a |an )[a-z][^.]{2,80}(for|over|the past)/i,
   /^i'?ve worked (as|in) (a |an )?[a-z][^.]{2,80}/i,
@@ -936,7 +936,10 @@ Your response MUST contain both blocks: POST_START...POST_END and IMAGE_START...
         (
           /^I'?m [A-Z][a-z]/.test(lastLine) ||
           /^I am [A-Z][a-z]/.test(lastLine) ||
-          /^[A-Z][a-z]+ [A-Z][a-z]+\s*[|,]/.test(lastLine)  // "FirstName LastName | Role" or "FirstName LastName, Role"
+          // "FirstName LastName | Role" or "FirstName LastName, Role"
+          // Word-count guard: real landing lines are usually > 8 words; self-intro lines are short
+          (/^[A-Z][a-z]+ [A-Z][a-z]+\s*\|/.test(lastLine) ||                              // pipe form — unambiguous
+           (/^[A-Z][a-z]+ [A-Z][a-z]+\s*,/.test(lastLine) && lastLine.split(/\s+/).length <= 8)) // comma form — only when short
         )
       ) {
         post = postLines.slice(0, -1).join('\n').trim();
