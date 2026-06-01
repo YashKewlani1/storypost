@@ -11,11 +11,12 @@ const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const JWT_SECRET    = process.env.JWT_SECRET    || 'dev-jwt-secret-change-in-prod';
 const IS_PROD       = process.env.NODE_ENV === 'production';
 
-if (IS_PROD && (!CLIENT_ID || !CLIENT_SECRET || !process.env.JWT_SECRET)) {
+if (IS_PROD && (!CLIENT_ID || !CLIENT_SECRET || !process.env.JWT_SECRET || !process.env.BASE_URL)) {
   const missing = [
     !CLIENT_ID && 'GOOGLE_CLIENT_ID',
     !CLIENT_SECRET && 'GOOGLE_CLIENT_SECRET',
     !process.env.JWT_SECRET && 'JWT_SECRET',
+    !process.env.BASE_URL && 'BASE_URL',
   ].filter(Boolean).join(', ');
   console.error(`FATAL: ${missing} required in production`);
   process.exit(1);
@@ -59,8 +60,15 @@ router.get('/google', (_req, res) => {
 
 // Step 2 — Google redirects back with a code
 router.get('/google/callback', async (req, res) => {
-  const { code, state } = req.query;
-  const savedState      = req.cookies?.oauth_state;
+  const { code, state, error: oauthError } = req.query;
+
+  // User declined consent or Google returned an error — redirect gracefully
+  if (oauthError) {
+    res.clearCookie('oauth_state', { path: '/' });
+    return res.redirect('/signin');
+  }
+
+  const savedState = req.cookies?.oauth_state;
 
   if (!state || state !== savedState) {
     return res.status(403).send('Invalid OAuth state — possible CSRF. Try signing in again.');

@@ -343,7 +343,7 @@ const LESSON_SENTENCE_RE = [
   // LLM meta-commentary that leaks into output
   /\bis not required at the end\b/i,
   /\bif it helps to confirm my identity\b/i,
-  /^[A-Z][a-z]+ is not (required|needed|necessary)\b/i,
+  /^\[[A-Z][a-z]+ is not (required|needed|necessary)\b/i,
   /^(feel free|please note|note that|just to clarify|as a note)\b/i,
   /^i('?ll| will| can| could) (keep|use|add|include|mention|note|adjust|make sure|ensure)\b/i,
   /^let me know if\b/i,
@@ -366,7 +366,9 @@ const FILLER_PARA_RE = [
   /^(a |one )(clear|simple|key|big|important|crucial|valuable|powerful) (lesson|takeaway|reminder)\b/i,
   /\bis not required at the end\b/i,
   /\bif it helps to confirm my identity\b/i,
-  /^\[?[A-Z][a-z]+ (is|was|are|were) not (required|needed|necessary)\b/i,
+  // Require the leading [ so we only catch LLM meta-commentary like "[Name is not required at the end]"
+  // and not real post sentences like "Loop is not required by law to cover this."
+  /^\[[A-Z][a-z]+ (is|was|are|were) not (required|needed|necessary)\b/i,
 ];
 
 // Find the best word index to cut a sentence at — prefers cutting before a preposition or conjunction
@@ -411,9 +413,10 @@ function cleanPost(post) {
 
     // Strip "As a/an [Role...]," prefix from sentences — excludes common non-role phrases (see module-level ROLE_EXCLUSIONS)
     let p = para
-      .replace(/\bAs an? [A-Za-z][^,.]{2,80}(?:,\s*|\s+at [A-Za-z ]{1,40},\s*)/g, (m) => ROLE_EXCLUSIONS.test(m) ? m : '')
-      .replace(/\bIn my (role|work) as [A-Za-z][^,.]{2,80},\s*/g, '')
-      .replace(/\bAs someone who [^,]{2,80},\s*/g, '');
+      // {1,80} (was {2,80}) — the old minimum of 2 silently missed 2-letter roles like PM, VP, HR
+      .replace(/\bAs an? [A-Za-z][^,.]{1,80}(?:,\s*|\s+at [A-Za-z ]{1,40},\s*)/g, (m) => ROLE_EXCLUSIONS.test(m) ? m : '')
+      .replace(/\bIn my (role|work) as [A-Za-z][^,.]{1,80},\s*/g, '')
+      .replace(/\bAs someone who [^,]{1,80},\s*/g, '');
 
     // Sentence-level: remove lesson formula sentences
     const sentences = splitSentences(p);
@@ -815,10 +818,10 @@ Output only the rewritten paragraph.`,
             // Whole paragraph is a lesson formula — keep original rather than return empty
             newPara = paragraphText;
           }
-          // Strip "As a [Role]," prefix
+          // Strip "As a [Role]," prefix — {1,80} matches 2-letter roles (PM, VP, HR) that {2,80} missed
           newPara = newPara
-            .replace(/\bAs an? [A-Za-z][^,.]{2,80}(?:,\s*|\s+at [A-Za-z ]{1,40},\s*)/g, (m) => ROLE_EXCLUSIONS.test(m) ? m : '')
-            .replace(/\bIn my (role|work) as [A-Za-z][^,.]{2,80},\s*/g, '');
+            .replace(/\bAs an? [A-Za-z][^,.]{1,80}(?:,\s*|\s+at [A-Za-z ]{1,40},\s*)/g, (m) => ROLE_EXCLUSIONS.test(m) ? m : '')
+            .replace(/\bIn my (role|work) as [A-Za-z][^,.]{1,80},\s*/g, '');
         }
 
         // Swap the paragraph in the full post
