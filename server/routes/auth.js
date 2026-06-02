@@ -131,7 +131,9 @@ router.get('/me', (req, res) => {
 
 // Sign out — clear cookie and land on the friendly sign-in page, not the OAuth flow
 router.post('/logout', (_req, res) => {
-  res.clearCookie('auth');
+  // Must pass the same path/secure/sameSite options used when setting the cookie —
+  // without them the browser treats it as a different cookie and ignores the clear.
+  res.clearCookie('auth', { httpOnly: true, secure: IS_PROD, sameSite: 'lax', path: '/' });
   res.redirect('/signin');
 });
 
