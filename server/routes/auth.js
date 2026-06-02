@@ -41,13 +41,37 @@ function verifyAuthCookie(req) {
   catch { return null; }
 }
 
+// Build a self-verifying CSRF state token — no cookie needed.
+// Format: <random>.<timestamp(base36)>.<hmac>
+// On Vercel the Set-Cookie in a redirect response can be dropped by the
+// browser before it follows the external redirect to Google, making the
+// cookie-based state check unreliable. A signed state token sidesteps this.
+function makeOAuthState() {
+  const nonce = crypto.randomBytes(16).toString('hex');
+  const ts    = Date.now().toString(36);
+  const payload = `${nonce}.${ts}`;
+  const sig = crypto.createHmac('sha256', JWT_SECRET).update(payload).digest('hex').slice(0, 24);
+  return `${payload}.${sig}`;
+}
+
+function verifyOAuthState(state) {
+  if (!state || typeof state !== 'string') return false;
+  const parts = state.split('.');
+  if (parts.length !== 3) return false;
+  const [nonce, ts, sig] = parts;
+  const payload = `${nonce}.${ts}`;
+  const expected = crypto.createHmac('sha256', JWT_SECRET).update(payload).digest('hex').slice(0, 24);
+  if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return false;
+  // Reject tokens older than 10 minutes
+  const age = Date.now() - parseInt(ts, 36);
+  return age >= 0 && age < 10 * 60 * 1000;
+}
+
 // ── Routes ───────────────────────────────────────────────────────────────────
 
 // Step 1 — redirect browser to Google
 router.get('/google', (_req, res) => {
-  const state = crypto.randomBytes(16).toString('hex');
-  // Store state nonce in a short-lived cookie (CSRF protection without a session)
-  res.cookie('oauth_state', state, { httpOnly: true, secure: IS_PROD, sameSite: 'lax', path: '/', maxAge: 5 * 60 * 1000 });
+  const state = makeOAuthState();
   const params = new URLSearchParams({
     client_id:     CLIENT_ID,
     redirect_uri:  `${BASE_URL}/auth/google/callback`,
@@ -63,17 +87,12 @@ router.get('/google/callback', async (req, res) => {
   const { code, state, error: oauthError } = req.query;
 
   // User declined consent or Google returned an error — redirect gracefully
-  if (oauthError) {
-    res.clearCookie('oauth_state', { path: '/' });
-    return res.redirect('/signin');
-  }
+  if (oauthError) return res.redirect('/signin');
 
-  const savedState = req.cookies?.oauth_state;
-
-  if (!state || state !== savedState) {
-    return res.status(403).send('Invalid OAuth state — possible CSRF. Try signing in again.');
+  if (!verifyOAuthState(state)) {
+    // State invalid or expired — send back to sign-in so they can retry cleanly
+    return res.redirect('/signin?error=session_expired');
   }
-  res.clearCookie('oauth_state', { path: '/' });
 
   try {
     // Exchange code for access token

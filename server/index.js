@@ -56,6 +56,7 @@ app.use('/auth', authRouter);
 if (IS_PROD) {
   app.get('/signin', (req, res) => {
     if (verifyAuthCookie(req)) return res.redirect('/');
+    const expired = req.query.error === 'session_expired';
     res.send(`<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -107,12 +108,14 @@ if (IS_PROD) {
     }
     .google-icon { width: 18px; height: 18px; flex-shrink: 0; }
     .footer { margin-top: 24px; font-size: 12px; color: #9CA3AF; }
+    .notice { margin-bottom: 20px; padding: 10px 14px; background: #FEF3C7; border-radius: 8px; font-size: 13px; color: #92400E; }
   </style>
 </head>
 <body>
   <div class="card">
     <div class="logo">✦ StoryPost</div>
     <p class="tagline">Turn your stories into LinkedIn posts</p>
+    ${expired ? '<p class="notice">Your session expired — please sign in again.</p>' : ''}
     <a class="btn-google" href="/auth/google">
       <svg class="google-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
         <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
