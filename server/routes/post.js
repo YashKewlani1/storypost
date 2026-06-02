@@ -583,6 +583,10 @@ router.post(
     const safeName = name.replace(UNSAFE_RE, '').trim();
     const safeRole = role.replace(UNSAFE_RE, '').trim();
 
+    const mode = hookOnly ? 'hook-regen' : regenParagraph ? `para-regen[${paragraphIndex}]` : 'generate';
+    console.log(`[GENERATE] ${safeName} (${safeRole}) — ${length} — mode:${mode}${imageBase64 ? ' +image' : ''}`);
+    const t0 = Date.now();
+
     // ── HOOK-ONLY REGEN ────────────────────────────────────────────────────────
     if (hookOnly === true) {
       if (!currentPost) return res.status(400).json({ error: 'currentPost required for hookOnly mode' });
@@ -675,9 +679,10 @@ Output exactly 2 lines only.`,
 
         newHook = h1 + '\n' + h2;
         const newPost = postBody ? newHook + '\n\n' + postBody : newHook;
+        console.log(`[GENERATE] hook-regen done — ${Date.now() - t0}ms`);
         return res.json({ post: newPost });
       } catch (err) {
-        console.error('Hook regen error:', err.status ?? 500, err.message);
+        console.error('[GENERATE] Hook regen error:', err.status ?? 500, err.message);
         return res.status(500).json({ error: 'Failed to regenerate hook. Please try again.' });
       }
     }
@@ -833,9 +838,10 @@ Output only the rewritten paragraph.`,
         paras[paragraphIndex] = newPara;
         const updatedPost = paras.join('\n\n');
 
+        console.log(`[GENERATE] para-regen[${paragraphIndex}] done — ${Date.now() - t0}ms`);
         return res.json({ post: updatedPost });
       } catch (err) {
-        console.error('Paragraph regen error:', err.status ?? 500, err.message);
+        console.error('[GENERATE] Paragraph regen error:', err.status ?? 500, err.message);
         return res.status(500).json({ error: 'Failed to rewrite paragraph. Please try again.' });
       }
     }
@@ -1050,9 +1056,11 @@ Your response MUST contain both blocks: POST_START...POST_END and IMAGE_START...
       }
       // ─────────────────────────────────────────────────────────────────────────
 
+      const wc = countWords(post);
+      console.log(`[GENERATE] done — ${wc} words — ${Date.now() - t0}ms`);
       res.json({ post, imageIdea });
     } catch (err) {
-      console.error('Post generation error:', err.status ?? 500, err.message);
+      console.error('[GENERATE] Post generation error:', err.status ?? 500, err.message);
       res.status(500).json({ error: 'Failed to generate post. Please try again.' });
     }
   }

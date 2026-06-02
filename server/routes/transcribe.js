@@ -41,6 +41,9 @@ router.post('/', upload.single('audio'), async (req, res) => {
     : req.file.mimetype.includes('ogg') ? 'ogg'
     : 'webm';
   const tmpPath = join(tmpdir(), `audio_${randomBytes(8).toString('hex')}.${ext}`);
+  const fileSizeKB = Math.round(req.file.size / 1024);
+  console.log(`[TRANSCRIBE] ${fileSizeKB}KB ${ext} received`);
+  const t0 = Date.now();
 
   try {
     await writeFile(tmpPath, req.file.buffer);
@@ -53,9 +56,11 @@ router.post('/', upload.single('audio'), async (req, res) => {
       prompt: 'Loop Health employee speaking in English or Hindi about their work.',
     });
 
+    const preview = transcription.text?.slice(0, 60).replace(/\n/g, ' ') ?? '';
+    console.log(`[TRANSCRIBE] done — ${Date.now() - t0}ms — "${preview}${transcription.text?.length > 60 ? '…' : ''}"`);
     res.json({ text: transcription.text });
   } catch (err) {
-    console.error('Transcription error:', err.message);
+    console.error('[TRANSCRIBE] error:', err.message);
     res.status(500).json({ error: 'Transcription failed. Please try again.' });
   } finally {
     try { await unlink(tmpPath); } catch { /* ignore */ }

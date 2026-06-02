@@ -71,6 +71,7 @@ function verifyOAuthState(state) {
 
 // Step 1 — redirect browser to Google
 router.get('/google', (_req, res) => {
+  console.log('[AUTH] Starting Google OAuth flow');
   const state = makeOAuthState();
   const params = new URLSearchParams({
     client_id:     CLIENT_ID,
@@ -118,14 +119,16 @@ router.get('/google/callback', async (req, res) => {
 
     // Domain gate
     if (!user.email?.toLowerCase().endsWith(`@${ALLOWED_DOMAIN}`)) {
+      console.warn(`[AUTH] Denied — non-Loop account: ${user.email}`);
       return res.redirect('/auth/denied');
     }
 
     // Issue JWT auth cookie — no session needed
+    console.log(`[AUTH] Login: ${user.email} (${user.name})`);
     setAuthCookie(res, { email: user.email, name: user.name });
     res.redirect('/');
   } catch (err) {
-    console.error('Google OAuth error:', err.message);
+    console.error('[AUTH] Google OAuth error:', err.message);
     res.status(500).send('Authentication failed — please try again.');
   }
 });
@@ -149,7 +152,9 @@ router.get('/me', (req, res) => {
 });
 
 // Sign out — clear cookie and land on the friendly sign-in page, not the OAuth flow
-router.post('/logout', (_req, res) => {
+router.post('/logout', (req, res) => {
+  const user = verifyAuthCookie(req);
+  console.log(`[AUTH] Logout: ${user?.email ?? 'unknown'}`);
   // Must pass the same path/secure/sameSite options used when setting the cookie —
   // without them the browser treats it as a different cookie and ignores the clear.
   res.clearCookie('auth', { httpOnly: true, secure: IS_PROD, sameSite: 'lax', path: '/' });

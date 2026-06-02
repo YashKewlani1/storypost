@@ -49,6 +49,17 @@ app.set('trust proxy', 1);
 // Cookie parser — needed to read the auth JWT cookie
 app.use(cookieParser());
 
+// ── Request logger ────────────────────────────────────────────────────────────
+app.use((req, _res, next) => {
+  const user = verifyAuthCookie(req);
+  const who  = user?.email ?? (IS_PROD ? 'unauthenticated' : 'dev');
+  // Skip noisy asset/health requests
+  if (!req.path.startsWith('/assets/') && req.path !== '/health') {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} — ${who}`);
+  }
+  next();
+});
+
 // Auth routes (Google OAuth redirect / callback) — always public
 app.use('/auth', authRouter);
 

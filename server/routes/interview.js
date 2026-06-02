@@ -261,6 +261,12 @@ router.post(
     }
 
     const { name, role, length, messages, checkReady } = req.body;
+    const UNSAFE_RE2 = /[<>{}\[\]`\x00-\x1f\x7f]/g;
+    const logName = name.replace(UNSAFE_RE2, '').trim();
+    const logRole = role.replace(UNSAFE_RE2, '').trim();
+    const turn = messages.filter(m => m.role === 'user').length;
+    console.log(`[INTERVIEW] ${logName} (${logRole}) — turn ${turn}${checkReady ? ' [checkReady]' : ''}`);
+    const t0interview = Date.now();
 
     // ── MOCK MODE ──────────────────────────────────────────────────────────────
     if (MOCK_MODE) {
@@ -423,9 +429,10 @@ Nothing after the final line.`,
 
       const done = (userTurnCount >= 2 || bigFirstMsg) && text.trimEnd().endsWith(HANDOFF_PHRASE);
 
+      console.log(`[INTERVIEW] turn ${turn} done — ${Date.now() - t0interview}ms${done ? ' — HANDOFF' : ''}`);
       res.json({ message: text, done });
     } catch (err) {
-      console.error('Interview error:', err.status ?? 500, err.message);
+      console.error('[INTERVIEW] error:', err.status ?? 500, err.message);
       res.status(500).json({ error: 'Failed to continue the interview. Please try again.' });
     }
   }
