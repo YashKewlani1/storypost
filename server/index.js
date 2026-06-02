@@ -185,10 +185,27 @@ app.get('/health', (_, res) => res.json({ status: 'ok' }));
 // On Vercel, static files are served directly from CDN — this block is skipped
 const DIST = join(__dirname, '../frontend/dist');
 if (existsSync(DIST)) {
-  app.use(express.static(DIST));
+  app.use(express.static(DIST, {
+    setHeaders(res, filePath) {
+      if (filePath.endsWith('index.html')) {
+        // Never cache index.html — always serve fresh so asset hashes stay in sync.
+        // Stale index.html referencing an old hashed bundle causes a MIME-type crash
+        // because the old .js file is gone and the catch-all returns text/html instead.
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      } else {
+        // Hashed asset filenames change when content changes — safe to cache forever.
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      }
+    },
+  }));
   app.get('*', (req, res) => {
     if (req.path.startsWith('/api/') || req.path.startsWith('/auth/')) {
       return res.status(404).json({ error: 'Not found' });
+    }
+    // Don't serve index.html for asset-looking paths — the file doesn't exist,
+    // returning HTML with text/html MIME type breaks module script loading.
+    if (/\.\w{1,5}$/.test(req.path)) {
+      return res.status(404).send('Not found');
     }
     res.sendFile(join(DIST, 'index.html'));
   });
