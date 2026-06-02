@@ -53,6 +53,7 @@ async function apiPost(path, body, timeoutMs = 45000) {
       signal: controller.signal,
     });
     const data = await res.json().catch(() => ({}));
+    if (res.status === 401) { window.location.href = '/auth/google'; return; }
     if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
     return data;
   } catch (err) {
@@ -116,14 +117,14 @@ export default function App() {
     }
   }
 
-  async function handleRegenHook() {
+  async function handleRegenHook(currentPostOverride) {
     if (regenHookLoadingRef.current) return;
     regenHookLoadingRef.current = true;
     const myId = ++genIdRef.current;
     setGenerateError(null);
     setRegenHookLoading(true);
     try {
-      const result = await apiPost('/api/generate', { ...contextData, messages, hookOnly: true, currentPost: post });
+      const result = await apiPost('/api/generate', { ...contextData, messages, hookOnly: true, currentPost: currentPostOverride ?? post });
       if (genIdRef.current !== myId) return;
       pushHistory(post);
       setPost(result.post);
@@ -148,7 +149,7 @@ export default function App() {
     });
   }
 
-  async function handleRegenParagraph(index, paragraphText) {
+  async function handleRegenParagraph(index, paragraphText, currentPostOverride) {
     if (regenParaIndex !== null) return; // another para is already loading
     const myId = ++genIdRef.current;
     setGenerateError(null);
@@ -160,7 +161,9 @@ export default function App() {
         regenParagraph: true,
         paragraphIndex: index,
         paragraphText,
-        currentPost: post,
+        // Use the currently displayed (possibly edited) post so user edits to
+        // other paragraphs are preserved when a single paragraph is rewritten.
+        currentPost: currentPostOverride ?? post,
       });
       if (genIdRef.current !== myId) return;
       pushHistory(post);
@@ -214,6 +217,11 @@ export default function App() {
       <header className="app-header">
         <div className="app-header-inner">
           <span className="app-logo">✦ StoryPost</span>
+          {!MOCK && (
+            <form method="POST" action="/auth/logout" style={{ margin: 0 }}>
+              <button type="submit" className="btn-logout">Sign out</button>
+            </form>
+          )}
         </div>
       </header>
 

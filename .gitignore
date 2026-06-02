@@ -6,8 +6,8 @@
 # dependencies
 node_modules/
 
-# build output
-frontend/dist/
+# build output — dist is committed so Vercel can serve it without a build step
+# frontend/dist/
 frontend/.vite/
 
 # OS
@@ -18,3 +18,4 @@ server/.env
 frontend/.env
 .claude/settings.local.json
 .env
+.vercel

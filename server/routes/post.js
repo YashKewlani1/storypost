@@ -335,15 +335,16 @@ const LESSON_SENTENCE_RE = [
   // "X is not just about" patterns
   /^(this|that|it) (is |was |isn'?t |wasn'?t )?(just |only )?about\b/i,
   // Self-introduction sentences — banned on LinkedIn (followers know who they are)
-  /^i'?ve been (a|an) [a-z][^.]{2,80}(for \d|for (about|over|nearly|around|the past|more than|almost|close to))/i,
+  /^i'?ve been (a|an) (?!patient\b|caregiver\b|parent\b|mother\b|father\b|son\b|daughter\b|sibling\b|child\b|survivor\b|outsider\b|immigrant\b)[a-z][^.]{2,80}(for \d|for (about|over|nearly|around|the past|more than|almost|close to))/i,
   /^i'?ve spent [^.]{0,30} as (a|an) [a-z][^.]{2,80}/i,
   /^i have been (working |)(as |)(a |an )[a-z][^.]{2,80}(for|over|the past)/i,
   /^i'?ve worked (as|in) (a |an )?[a-z][^.]{2,80}/i,
+  /^i'?m [A-Z][a-z]+(?:\s+[A-Z][a-z]+)?,\s/i,  // "I'm Yash, ..." — name-first self-intro (catches "I'm Yash, and I shared..." too)
   /^i'?m [A-Z][a-z]+[, ].{0,60}(and |at |,).{0,60}(loop|my role|i (work|lead|manage|build|run))/i,
   // LLM meta-commentary that leaks into output
   /\bis not required at the end\b/i,
   /\bif it helps to confirm my identity\b/i,
-  /^[A-Z][a-z]+ is not (required|needed|necessary)\b/i,
+  /^\[[A-Z][a-z]+ is not (required|needed|necessary)\b/i,
   /^(feel free|please note|note that|just to clarify|as a note)\b/i,
   /^i('?ll| will| can| could) (keep|use|add|include|mention|note|adjust|make sure|ensure)\b/i,
   /^let me know if\b/i,
@@ -351,7 +352,7 @@ const LESSON_SENTENCE_RE = [
 ];
 
 // Non-role "As a X" phrases that must NOT be stripped by the role-prefix remover
-const ROLE_EXCLUSIONS = /^As an? (result|whole|matter|team|company|group|collective|community|society|country|nation|part|side effect|consequence|follow.?up|follow|note|caveat|disclaimer|bonus)\b/i;
+const ROLE_EXCLUSIONS = /^As an? (result|whole|matter|team|company|group|collective|community|society|country|nation|part|side effect|consequence|follow.?up|follow|note|caveat|disclaimer|bonus|mother|father|parent|child|daughter|son|sibling|brother|sister|spouse|partner|patient|caregiver|survivor|kid|outsider|immigrant|first.gen)\b/i;
 
 // Whole-paragraph patterns — remove the entire paragraph.
 const FILLER_PARA_RE = [
@@ -366,7 +367,9 @@ const FILLER_PARA_RE = [
   /^(a |one )(clear|simple|key|big|important|crucial|valuable|powerful) (lesson|takeaway|reminder)\b/i,
   /\bis not required at the end\b/i,
   /\bif it helps to confirm my identity\b/i,
-  /^\[?[A-Z][a-z]+ (is|was|are|were) not (required|needed|necessary)\b/i,
+  // Require the leading [ so we only catch LLM meta-commentary like "[Name is not required at the end]"
+  // and not real post sentences like "Loop is not required by law to cover this."
+  /^\[[A-Z][a-z]+ (is|was|are|were) not (required|needed|necessary)\b/i,
 ];
 
 // Find the best word index to cut a sentence at — prefers cutting before a preposition or conjunction
@@ -411,9 +414,10 @@ function cleanPost(post) {
 
     // Strip "As a/an [Role...]," prefix from sentences — excludes common non-role phrases (see module-level ROLE_EXCLUSIONS)
     let p = para
-      .replace(/\bAs an? [A-Za-z][^,.]{2,80}(?:,\s*|\s+at [A-Za-z ]{1,40},\s*)/g, (m) => ROLE_EXCLUSIONS.test(m) ? m : '')
-      .replace(/\bIn my (role|work) as [A-Za-z][^,.]{2,80},\s*/g, '')
-      .replace(/\bAs someone who [^,]{2,80},\s*/g, '');
+      // {1,80} (was {2,80}) — the old minimum of 2 silently missed 2-letter roles like PM, VP, HR
+      .replace(/\bAs an? [A-Za-z][^,.]{1,80}(?:,\s*|\s+at [A-Za-z ]{1,40},\s*)/g, (m) => ROLE_EXCLUSIONS.test(m) ? m : '')
+      .replace(/\bIn my (role|work) as [A-Za-z][^,.]{1,80},\s*/g, '')
+      .replace(/\bAs someone who [^,]{1,80},\s*/g, '');
 
     // Sentence-level: remove lesson formula sentences
     const sentences = splitSentences(p);
@@ -444,14 +448,19 @@ function cleanPost(post) {
     .trim();
 
   // 4. Strip any sentence containing a question mark (banned per system prompt)
-  result = result.split('\n\n').map(para => {
+  const paraList4 = result.split('\n\n');
+  result = paraList4.map((para, idx) => {
     if (!para.trim()) return '';
+    if (!para.includes('?')) return para;
     const sentences = splitSentences(para);
     if (sentences.length <= 1) {
-      // If the whole paragraph is a question, remove it entirely
-      return para.includes('?') ? '' : para;
+      // Never delete the hook (first paragraph) — convert the ? to a period instead
+      if (idx === 0) return para.replace(/\?/g, '.');
+      return '';
     }
     const filtered = sentences.filter(s => !s.includes('?'));
+    // If filtering would empty the hook, fall back to replacing ? with .
+    if (filtered.length === 0 && idx === 0) return para.replace(/\?/g, '.');
     return filtered.length > 0 ? filtered.join(' ') : '';
   }).filter(p => p.trim()).join('\n\n');
 
@@ -546,7 +555,10 @@ router.post(
   }),
   body('messages.*.role').isIn(['user', 'assistant']),
   body('messages.*.content').isString().notEmpty().isLength({ max: 8000 }),
-  body('imageBase64').optional().isString().isLength({ max: 8_000_000 }),
+  // Vercel serverless hard limit is 4.5 MB request body — base64 overhead ~33%,
+  // so max ~3.4 MB source image ≈ 4_500_000 base64 chars. Anything larger is
+  // silently rejected by Vercel's infra before Express sees it anyway.
+  body('imageBase64').optional().isString().isLength({ max: 4_500_000 }),
   body('imageMimeType').optional().isIn(['image/jpeg', 'image/png', 'image/webp'])
     .custom((val, { req }) => {
       if (req.body.imageBase64 && !val) throw new Error('imageMimeType required when imageBase64 is present');
@@ -645,7 +657,8 @@ Output exactly 2 lines only.`,
         h2 = cleanHookLine(h2);
 
         // Enforce word count <= 25
-        while ((h1 + ' ' + h2).trim().split(/\s+/).filter(Boolean).length > 25) {
+        let _safety1 = 0;
+        while ((h1 + ' ' + h2).trim().split(/\s+/).filter(Boolean).length > 25 && _safety1++ < 20) {
           const w1 = h1.split(/\s+/).filter(Boolean).length;
           const w2 = h2.split(/\s+/).filter(Boolean).length;
           if (w1 <= 4 && w2 <= 4) break;
@@ -766,7 +779,8 @@ Output only the rewritten paragraph.`,
           const cleanLine = s => s.replace(/ — ([A-Z])/g, (_, c) => '. ' + c).replace(/ — /g, ', ').replace(/—/g, ', ');
           h1 = cleanLine(h1);
           h2 = cleanLine(h2);
-          while ((h1 + ' ' + h2).trim().split(/\s+/).filter(Boolean).length > 25) {
+          let _safety2 = 0;
+          while ((h1 + ' ' + h2).trim().split(/\s+/).filter(Boolean).length > 25 && _safety2++ < 20) {
             const w1 = h1.split(/\s+/).filter(Boolean).length;
             const w2 = h2.split(/\s+/).filter(Boolean).length;
             if (w1 <= 4 && w2 <= 4) break;
@@ -805,10 +819,10 @@ Output only the rewritten paragraph.`,
             // Whole paragraph is a lesson formula — keep original rather than return empty
             newPara = paragraphText;
           }
-          // Strip "As a [Role]," prefix
+          // Strip "As a [Role]," prefix — {1,80} matches 2-letter roles (PM, VP, HR) that {2,80} missed
           newPara = newPara
-            .replace(/\bAs an? [A-Za-z][^,.]{2,80}(?:,\s*|\s+at [A-Za-z ]{1,40},\s*)/g, (m) => ROLE_EXCLUSIONS.test(m) ? m : '')
-            .replace(/\bIn my (role|work) as [A-Za-z][^,.]{2,80},\s*/g, '');
+            .replace(/\bAs an? [A-Za-z][^,.]{1,80}(?:,\s*|\s+at [A-Za-z ]{1,40},\s*)/g, (m) => ROLE_EXCLUSIONS.test(m) ? m : '')
+            .replace(/\bIn my (role|work) as [A-Za-z][^,.]{1,80},\s*/g, '');
         }
 
         // Swap the paragraph in the full post
@@ -866,6 +880,8 @@ Write a ${wordRange} LinkedIn post built entirely from what they said${imageBase
 
 HOOK REMINDER — the post MUST open with exactly 2 short lines, each its own sentence, followed by one blank line. Line 1: one specific fact or moment. Line 2: a NEW fact that cannot be inferred from line 1. Then a blank line. Then the body starts. Do NOT open with "I've been...", "I work...", "I've noticed...", "I've been working with...", or any soft multi-clause opener. If no concrete incident exists, use hook Structure 3 or 4 from the system prompt.
 
+ENDING BAN — the last sentence of the post must NEVER mention the employee's name or introduce them. Do NOT end with anything like "I'm ${safeName}...", "My name is ${safeName.split(' ')[0]}...", "${safeName}, [role] at Loop", or any sentence that names them or summarises what they talked about. The post ends with the story or the landing line — never a byline or sign-off.
+
 Your response MUST contain both blocks: POST_START...POST_END and IMAGE_START...IMAGE_END. A response without the IMAGE block is incomplete.`;
 
       const userMessage = imageBase64
@@ -918,13 +934,15 @@ Your response MUST contain both blocks: POST_START...POST_END and IMAGE_START...
       // Check as standalone last line first
       const postLines = post.split('\n');
       const lastLine = postLines[postLines.length - 1].trim();
-      const SELF_INTRO_RE = /(?:^|\.\s+)(I'?m [A-Z][a-z][^.]*(?:PM|manager|engineer|designer|lead|head|director|founder|co-founder|VP|CEO|CTO|CFO|COO)[^.]*\.)/i;
       if (
         postLines.length > 1 &&
         (
           /^I'?m [A-Z][a-z]/.test(lastLine) ||
           /^I am [A-Z][a-z]/.test(lastLine) ||
-          /^[A-Z][a-z]+ [A-Z][a-z]+\s*[|,]/.test(lastLine)  // "FirstName LastName | Role" or "FirstName LastName, Role"
+          // "FirstName LastName | Role" or "FirstName LastName, Role"
+          // Word-count guard: real landing lines are usually > 8 words; self-intro lines are short
+          (/^[A-Z][a-z]+ [A-Z][a-z]+\s*\|/.test(lastLine) ||                              // pipe form — unambiguous
+           (/^[A-Z][a-z]+ [A-Z][a-z]+\s*,/.test(lastLine) && lastLine.split(/\s+/).length <= 8)) // comma form — only when short
         )
       ) {
         post = postLines.slice(0, -1).join('\n').trim();
@@ -933,12 +951,29 @@ Your response MUST contain both blocks: POST_START...POST_END and IMAGE_START...
         // e.g. "...better product manager. I'm Priya, PM at Loop."
         const lastParaIdx = post.lastIndexOf('\n\n');
         const lastPara = lastParaIdx >= 0 ? post.slice(lastParaIdx + 2) : post;
-        const selfIntroSentenceRE = /\s+I'?m [A-Z][a-z][^.]*(?:,\s*[A-Z]|at Loop)[^.]*\.\s*$/i;
+        // Catches "I'm [ProperName]..." regardless of what follows (comma, period, "and", etc.)
+        const selfIntroSentenceRE = /\s+I'?m [A-Z][a-z][^.]{0,80}\.\s*$/i;
         if (selfIntroSentenceRE.test(lastPara)) {
           const cleaned = lastPara.replace(selfIntroSentenceRE, '').trim();
           post = lastParaIdx >= 0
             ? post.slice(0, lastParaIdx + 2) + cleaned
             : cleaned;
+          post = post.trim();
+        }
+      }
+
+      // Name-aware strip — catches any variant that mentions the employee's name
+      // in the last sentence of the last paragraph, regardless of phrasing.
+      // e.g. "I'm Yash, and I shared...", "My name is Yash Kewlani.", "— Yash"
+      const nameParts = safeName.split(/\s+/).filter(p => p.length > 1);
+      if (nameParts.length > 0) {
+        const nameAlts = nameParts.map(p => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+        const nameLeakRE = new RegExp(`\\s+[^.]*\\b(?:${nameAlts})\\b[^.]*\\.\\s*$`, 'i');
+        const lastParaIdx2 = post.lastIndexOf('\n\n');
+        const lastPara2 = lastParaIdx2 >= 0 ? post.slice(lastParaIdx2 + 2) : post;
+        if (nameLeakRE.test(lastPara2)) {
+          const cleaned2 = lastPara2.replace(nameLeakRE, '').trim();
+          post = lastParaIdx2 >= 0 ? post.slice(0, lastParaIdx2 + 2) + cleaned2 : cleaned2;
           post = post.trim();
         }
       }
