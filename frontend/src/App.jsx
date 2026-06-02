@@ -218,9 +218,13 @@ export default function App() {
         <div className="app-header-inner">
           <span className="app-logo">✦ StoryPost</span>
           {!MOCK && (
-            <form method="POST" action="/auth/logout" style={{ margin: 0 }}>
-              <button type="submit" className="btn-logout">Sign out</button>
-            </form>
+            <button
+              className="btn-logout"
+              onClick={async () => {
+                await fetch('/auth/logout', { method: 'POST' });
+                window.location.href = '/signin';
+              }}
+            >Sign out</button>
           )}
         </div>
       </header>
