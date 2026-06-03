@@ -119,12 +119,12 @@ router.get('/google/callback', async (req, res) => {
 
     // Domain gate
     if (!user.email?.toLowerCase().endsWith(`@${ALLOWED_DOMAIN}`)) {
-      console.warn(`[AUTH] Denied — non-Loop account: ${user.email}`);
+      console.warn('[AUTH] Denied — account not on allowed domain');
       return res.redirect('/auth/denied');
     }
 
     // Issue JWT auth cookie — no session needed
-    console.log(`[AUTH] Login: ${user.email} (${user.name})`);
+    console.log('[AUTH] Login successful');
     setAuthCookie(res, { email: user.email, name: user.name });
     res.redirect('/');
   } catch (err) {
@@ -153,8 +153,7 @@ router.get('/me', (req, res) => {
 
 // Sign out — clear cookie and land on the friendly sign-in page, not the OAuth flow
 router.post('/logout', (req, res) => {
-  const user = verifyAuthCookie(req);
-  console.log(`[AUTH] Logout: ${user?.email ?? 'unknown'}`);
+  console.log('[AUTH] Logout');
   // Must pass the same path/secure/sameSite options used when setting the cookie —
   // without them the browser treats it as a different cookie and ignores the clear.
   res.clearCookie('auth', { httpOnly: true, secure: IS_PROD, sameSite: 'lax', path: '/' });

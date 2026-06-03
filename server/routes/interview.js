@@ -261,11 +261,8 @@ router.post(
     }
 
     const { name, role, length, messages, checkReady } = req.body;
-    const UNSAFE_RE2 = /[<>{}\[\]`\x00-\x1f\x7f]/g;
-    const logName = name.replace(UNSAFE_RE2, '').trim();
-    const logRole = role.replace(UNSAFE_RE2, '').trim();
     const turn = messages.filter(m => m.role === 'user').length;
-    console.log(`[INTERVIEW] ${logName} (${logRole}) — turn ${turn}${checkReady ? ' [checkReady]' : ''}`);
+    console.log(`[INTERVIEW] turn ${turn}${checkReady ? ' [checkReady]' : ''}`);
     const t0interview = Date.now();
 
     // ── MOCK MODE ──────────────────────────────────────────────────────────────

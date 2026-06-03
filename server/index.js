@@ -5,6 +5,13 @@ import helmet from 'helmet';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { existsSync } from 'fs';
+import { createHash } from 'crypto';
+
+// Returns a short non-reversible token for log correlation — never logs the real email.
+function userTag(user) {
+  if (!user?.email) return 'anon';
+  return 'u:' + createHash('sha256').update(user.email).digest('hex').slice(0, 8);
+}
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 import { limiter } from './middleware/rateLimiter.js';
@@ -49,27 +56,26 @@ app.set('trust proxy', 1);
 // Cookie parser — needed to read the auth JWT cookie
 app.use(cookieParser());
 
-// ── Request / response logger — logs everything ───────────────────────────────
+// ── Request / response logger ─────────────────────────────────────────────────
+// Logs method, path, status, timing, and a hashed user token.
+// Never logs: email addresses, names, IPs, request bodies, or stack traces.
 app.use((req, res, next) => {
   const start = Date.now();
-  const user  = verifyAuthCookie(req);
-  const who   = user?.email ?? (IS_PROD ? 'unauthenticated' : 'dev');
+  const who   = userTag(verifyAuthCookie(req));
   const ts    = () => new Date().toISOString();
 
-  console.log(`[${ts()}] ▶ ${req.method} ${req.path} — ${who}`);
+  console.log(`[${ts()}] ▶ ${req.method} ${req.path} [${who}]`);
 
-  // Log when the response finishes
   res.on('finish', () => {
     const ms     = Date.now() - start;
     const status = res.statusCode;
     const level  = status >= 500 ? 'ERROR' : status >= 400 ? 'WARN' : 'OK';
-    console.log(`[${ts()}] ◀ ${req.method} ${req.path} ${status} ${level} — ${ms}ms — ${who}`);
+    console.log(`[${ts()}] ◀ ${req.method} ${req.path} ${status} ${level} ${ms}ms [${who}]`);
   });
 
-  // Log if the connection drops before a response is sent
   res.on('close', () => {
     if (!res.writableEnded) {
-      console.warn(`[${ts()}] ✗ ${req.method} ${req.path} — connection closed before response — ${who}`);
+      console.warn(`[${ts()}] ✗ ${req.method} ${req.path} — dropped before response [${who}]`);
     }
   });
 
@@ -242,7 +248,8 @@ app.use((err, req, res, _next) => {
     console.warn(`[ERROR] 413 File too large — ${req.method} ${req.path} — ${err.message}`);
     return res.status(413).json({ error: 'File too large. Maximum size is 4 MB.' });
   }
-  console.error(`[ERROR] ${err.status ?? 500} — ${req.method} ${req.path} — ${err.message}`, err.stack ?? '');
+  // No stack trace in logs — it leaks internal file paths and dependency versions.
+  console.error(`[ERROR] ${err.status ?? 500} — ${req.method} ${req.path} — ${err.message}`);
   res.status(err.status || 500).json({ error: 'Internal server error' });
 });
 

@@ -584,7 +584,7 @@ router.post(
     const safeRole = role.replace(UNSAFE_RE, '').trim();
 
     const mode = hookOnly ? 'hook-regen' : regenParagraph ? `para-regen[${paragraphIndex}]` : 'generate';
-    console.log(`[GENERATE] ${safeName} (${safeRole}) — ${length} — mode:${mode}${imageBase64 ? ' +image' : ''}`);
+    console.log(`[GENERATE] ${length} — mode:${mode}${imageBase64 ? ' +image' : ''}`);
     const t0 = Date.now();
 
     // ── HOOK-ONLY REGEN ────────────────────────────────────────────────────────
