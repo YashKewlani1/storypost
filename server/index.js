@@ -63,6 +63,9 @@ app.use((req, _res, next) => {
 // Auth routes (Google OAuth redirect / callback) — always public
 app.use('/auth', authRouter);
 
+// Browsers always request /favicon.ico regardless of <link rel="icon"> — redirect to the SVG
+app.get('/favicon.ico', (_req, res) => res.redirect(301, '/favicon.svg'));
+
 // Protect frontend pages in production — show sign-in page if no auth cookie
 if (IS_PROD) {
   app.get('/signin', (req, res) => {
