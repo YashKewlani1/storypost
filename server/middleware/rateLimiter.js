@@ -9,4 +9,8 @@ export const limiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests, please try again later.' },
+  handler: (req, res, next, options) => {
+    console.warn(`[RATE-LIMIT] 429 — ${req.method} ${req.path} — ${req.ip}`);
+    res.status(options.statusCode).json(options.message);
+  },
 });

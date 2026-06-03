@@ -49,14 +49,30 @@ app.set('trust proxy', 1);
 // Cookie parser — needed to read the auth JWT cookie
 app.use(cookieParser());
 
-// ── Request logger ────────────────────────────────────────────────────────────
-app.use((req, _res, next) => {
-  const user = verifyAuthCookie(req);
-  const who  = user?.email ?? (IS_PROD ? 'unauthenticated' : 'dev');
-  // Skip noisy asset/health requests
-  if (!req.path.startsWith('/assets/') && req.path !== '/health') {
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} — ${who}`);
-  }
+// ── Request / response logger — logs everything ───────────────────────────────
+app.use((req, res, next) => {
+  const start = Date.now();
+  const user  = verifyAuthCookie(req);
+  const who   = user?.email ?? (IS_PROD ? 'unauthenticated' : 'dev');
+  const ts    = () => new Date().toISOString();
+
+  console.log(`[${ts()}] ▶ ${req.method} ${req.path} — ${who}`);
+
+  // Log when the response finishes
+  res.on('finish', () => {
+    const ms     = Date.now() - start;
+    const status = res.statusCode;
+    const level  = status >= 500 ? 'ERROR' : status >= 400 ? 'WARN' : 'OK';
+    console.log(`[${ts()}] ◀ ${req.method} ${req.path} ${status} ${level} — ${ms}ms — ${who}`);
+  });
+
+  // Log if the connection drops before a response is sent
+  res.on('close', () => {
+    if (!res.writableEnded) {
+      console.warn(`[${ts()}] ✗ ${req.method} ${req.path} — connection closed before response — ${who}`);
+    }
+  });
+
   next();
 });
 
@@ -218,9 +234,15 @@ if (existsSync(DIST)) {
 
 // Global error handler
 app.use((err, req, res, _next) => {
-  if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'Invalid request body' });
-  if (err.code === 'LIMIT_FILE_SIZE')      return res.status(413).json({ error: 'File too large. Maximum size is 4 MB.' });
-  console.error('Unhandled error:', err.status ?? 500, err.message);
+  if (err.type === 'entity.parse.failed') {
+    console.warn(`[ERROR] 400 Bad JSON body — ${req.method} ${req.path}`);
+    return res.status(400).json({ error: 'Invalid request body' });
+  }
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    console.warn(`[ERROR] 413 File too large — ${req.method} ${req.path} — ${err.message}`);
+    return res.status(413).json({ error: 'File too large. Maximum size is 4 MB.' });
+  }
+  console.error(`[ERROR] ${err.status ?? 500} — ${req.method} ${req.path} — ${err.message}`, err.stack ?? '');
   res.status(err.status || 500).json({ error: 'Internal server error' });
 });
 
