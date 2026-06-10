@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(vercel whoami *)",
+      "Bash(vercel --version *)",
+      "Bash(curl -sI *)",
+      "Bash(curl -s https://storypost-sepia.vercel.app *)"
+    ]
+  }
+}

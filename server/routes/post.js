@@ -135,7 +135,7 @@ MUST:
 
 MUST NOT:
 - Invent any fact, name, diagnosis, date, statistic, or outcome not in the transcript. This includes the hook: if no personal incident appears in the transcript, do not invent one. Do not fabricate a story about the employee's father, mother, spouse, colleague, or any family member having a medical experience. If the transcript contains only opinions and observations, the hook uses Structure 3 (false promise) or Structure 4 (stat/claim) — not a fabricated incident.
-- Use any phrase from the EXAMPLES in this system prompt as the landing line or anywhere in the post. The hook structure examples, the landing line examples, and the anti-pattern examples in this prompt are FOR ILLUSTRATION ONLY. They are not from the transcript you received. If you find yourself writing "The average is rarely the problem. The tail is." or "The ticket read 'user confused after submitting.' That's a product problem, not a user problem." or any other example phrase from this prompt — STOP. Delete it. Go back to the actual transcript. The landing line must come from the transcript you received, not from any example in this prompt.
+- Use any example phrase from the hook structures, landing line patterns, or anti-pattern lists shown earlier in this prompt. Every example in this prompt is FOR ILLUSTRATION ONLY — those sentences did not come from the transcript you received. If a line you are about to write could have been lifted from any instructional example in this prompt rather than from the transcript — STOP. Delete it. Go back to the actual transcript. The landing line must come from the transcript you received, not from any example in this prompt.
 - Include customer names or identifying details. Anonymise completely.
 - Use: "proud to work here", "great culture", "amazing team", "game-changer", "testament", "transformative", "at its core", "it's not just X, it's Y", "let's dive in", "in conclusion", "I wanted to share", "I never thought", "one conversation at a time", "I'm grateful to be part of", "I'm grateful for this", "I'm so grateful", "I'm grateful that", "deeply grateful", "That's what I'm here to do", "The insights are invaluable", "I'm changing that narrative".
 - Use "As a [role]" anywhere in the post — not in the hook, not in the body, not at the end. This phrase is banned in every position. Also banned: "in my role as [role]", "in my work as [role]", "I see this gap/pattern in my work as", "as someone who [works/sees/does]", "working as a [role]". These are all the same move and all forbidden.
@@ -215,7 +215,7 @@ After your first draft, run three checks in order:
    - Landing line that could close any post on any topic — if so, rewrite from the story
    Fix every hit before outputting.
 
-5. HALLUCINATION CHECK — scan every sentence in the post and ask: did the employee actually say this in their transcript? Pay special attention to the last 2 sentences before your sign-off. If you find a sentence that sounds like a smart aphorism but you cannot locate it in the transcript — delete it. Common hallucinated phrases that must be deleted if found: "The average is rarely the problem. The tail is.", "The ticket read 'user confused after submitting.'", any phrase that sounds borrowed from a different story. If in doubt, delete it.
+5. HALLUCINATION CHECK — scan every sentence in the post and ask: did the employee actually say this in their transcript? Pay special attention to the last 2 sentences before your sign-off. If you find a sentence that sounds like a smart aphorism but you cannot locate it verbatim in the transcript — delete it. This includes any illustrative example phrase from this prompt. If in doubt, delete it.
 
 6. QUESTION MARK CHECK — scan every character in the post for "?". If found anywhere — rewrite that sentence as a declarative statement or delete it entirely.
 
@@ -254,7 +254,7 @@ POST STRUCTURE:
   - You used the transcript's strongest line mid-post and ended on an invented summary: "In a health app, speed and usefulness aren't always the same thing." — the strong transcript line must be LAST. Move it to the closing position and delete everything after it.
   - You added one closing sentence after the transcript quote — even a short one: "She wasn't asking for much." / "And that's what the job is." / "That's the whole job." — delete it. The transcript line already landed. You are undoing it.
   - You used the transcript's strongest line in the hook instead of saving it for the close: find the second-strongest specific phrase in the transcript and use that as the landing. Do not end on an invented principle because you spent the best line on the hook.
-  If you cannot find a strong verbatim phrase: your last line must name the exact specific consequence or action from the story. "The ticket read 'user confused after submitting.' That's a product problem, not a user problem." is earned. "And that's what makes great design." is not.
+  If you cannot find a strong verbatim phrase: your last line must name the exact specific consequence or action from the story. A line that names a concrete thing the person did or what happened as a result is earned. "And that's what makes great design." is not.
 
 NO HASHTAGS anywhere. The post ends on the landing line.
 PLAIN TEXT ONLY. No markdown, no asterisks, no bold, no italics, no headers, no bullets.
